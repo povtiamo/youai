@@ -1,1 +1,1 @@
-# test
+# usual script
