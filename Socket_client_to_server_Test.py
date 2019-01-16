@@ -16,9 +16,10 @@ import sys
 import os
 import threading
 import logging
+import httplib
 
 os.chdir(os.path.dirname(sys.argv[0]))
-#pdb debug switch
+# pdb debug switch
 # _DEBUG = True
 _DEBUG = False
 if _DEBUG is True:
@@ -33,10 +34,10 @@ class Client():
     # URL = "http://fy2server.fytxonline.com"
 
     for i in range(11):
-        choose_ID=input("select a SERVER_ID (1,2,3,4,5,8,9,10,11,12,13,14,15,16,18,20,22,30) >>")
+        choose_ID=input("select a SERVER_ID (1,2,3,4,5,8,9,10,11,12,13,14,15,16,17,18,19,3000,3002,23,30) >>")
         choose_ID=int(choose_ID)
         if i < 10:
-            if choose_ID in [6,7] or choose_ID not in range(1,31):
+            if choose_ID in [6,7] or choose_ID not in range(1,3100):
                 print "False Enter!"
                 continue
             else:
@@ -63,8 +64,8 @@ class Client():
         17:("10.17.172.221",2002),
         18:("10.17.172.221",2003),
         19:("10.17.172.221",2004),
-        20:("10.17.172.222",2003),
-        22:("10.17.172.222",2005),
+        3000:("10.17.172.222",2003),
+        3002:("10.17.172.222",2005),
         23:("10.17.172.222",2007),
         30:("10.17.172.221",2005)
     }
@@ -86,8 +87,8 @@ class Client():
         17:"http://10.17.172.221:2082",
         18:"http://10.17.172.221:2083",
         19:"http://10.17.172.221:2084",
-        20:"http://10.17.172.222:2083",
-        22:"http://10.17.172.222:2085",
+        3000:"http://10.17.172.222:2083",
+        3002:"http://10.17.172.222:2085",
         23:"http://10.17.172.222:2087",
         30:"http://10.17.172.221:2085"
     }
@@ -98,8 +99,8 @@ class Client():
     print "SERVER_ADDR:%s ,GM_URL:%s ,SERVER_ID:%s" %(SERVER_ADDR ,GM_URL ,SERVER_ID)
 
     CONVERT_LIB = ctypes.cdll.LoadLibrary("./pycall.dylib")
-    MSG_BASE = struct.Struct("h h i i")
-    MSG_BASE_LEN = 12
+    MSG_BASE = struct.Struct("=H i i q")
+    MSG_BASE_LEN = 18
     LOGIN_REQ = 12
 
 
@@ -197,7 +198,7 @@ class Client():
         #     self.keju_Answer(1)
             # self.dianshi_Question()
             # self.dianshi_Answer(1)
-        # self.__del__()
+        self.__del__()
 
 
 
@@ -218,24 +219,81 @@ class Client():
         #self.recv()
 
 
+
+    def http_post(self,url, data='', data_type = 'x-www-form-urlencoded',user_agent='', timeout_param=5,timeout=5,headers=[],cookie=''):
+        res = None
+        urlInfo = httplib.urlsplit(url)
+        uri = ( '%s?%s' % (urlInfo.path,urlInfo.query) ) if urlInfo.query else urlInfo.path
+        if url.find('https://')>-1:
+            conn = httplib.HTTPSConnection(urlInfo.netloc,timeout=timeout or timeout_param)
+        else:
+            conn = httplib.HTTPConnection(urlInfo.netloc,timeout=timeout or timeout_param)
+        try:
+            conn.connect()
+            
+            if data:
+                if isinstance(data,unicode):
+                    data = data.encode('utf-8')
+                conn.putrequest("POST", uri)
+            else:
+                conn.putrequest("GET", uri)
+                
+            for k,v in headers:
+                conn.putheader(k, v)
+                
+            if cookie :
+                if isinstance(cookie,dict):
+                    cookie = ' '.join(['%s=%s;' % (urllib2.quote(str(k)),urllib2.quote(str(v))) for k,v in cookie.iteritems()])
+                conn.putheader("Cookie", cookie)
+                
+            conn.putheader("Content-Length", len(data))
+            conn.putheader("Content-Type", "application/%s" % data_type)
+            if user_agent!='':
+                conn.putheader("User-Agent",user_agent)
+                    
+            conn.putheader("Connection", "close")
+            conn.endheaders()
+
+            if data:
+                conn.send(data)
+
+            response = conn.getresponse()
+            if response:
+                res = response.read()
+                response.close()
+            
+            return res
+        
+        except socket.timeout:
+            raise HttpTimeOut('Connect %s time out' % url)
+        except Exception, ex:
+            raise ex
+        
+        conn.close()
+
+
+    def gm_http_result(self,req_type,content):
+        post_data = 'req_type=%d&content=%s' % (req_type, content)
+        post_data += ''.join(['&player_id=%s' % str(self.__player_id)])
+        post_data = post_data.encode('utf-8')        
+        # print "post_data:",post_data
+        url = Client.GM_URL + "/service?"
+
+        res=self.http_post(url,data=post_data,timeout=10)
+        _r=json.loads(res)
+        return _r["msg"]
+
+
     def gm_modify_level(self,player_lv,vip_exp):
-        # player_lv=random.randint(0,99)
         if (self.__player_id == 0):
             return
-        content = "{\"msg\":[\""
-        content += self.__username
-        content += "\","
-        content += str(player_lv)
-        content += ","
-        content += str(vip_exp)
-        content += "]}"
-        msg = urllib.urlencode({"req_type": "1109","content": content,"player_id": self.__player_id})
-        url = Client.GM_URL + "/service?"
+        req_type=1109
+        content = [self.__username,player_lv,vip_exp]
+        content = json.dumps({"msg": content}, ensure_ascii=False)
+        print content
         print "gm_level_sending...:"
-        req = urllib2.Request(url,msg)
-        res_data = urllib2.urlopen(req)
-        res = res_data.read()
-        print "gm_level_result:",res
+        result=self.gm_http_result(req_type,content)
+        print "result:",result
 
     def gm_modify_resource(self,resource):
         if (self.__player_id == 0):
@@ -243,13 +301,21 @@ class Client():
         content = "{\"msg\":"
         content += resource
         content += "}"
-        msg = urllib.urlencode({"req_type": "1110","content": content,"player_id": self.__player_id})
-        url = Client.GM_URL + "/service?"
-        req = urllib2.Request(url,msg)
+        # msg = urllib.urlencode({"req_type": "1110","content": content,"player_id": self.__player_id})
+        # url = Client.GM_URL + "/service?"
+        # req = urllib2.Request(url,msg)
+        # print "gm_resource_sending..."
+        # res_data = urllib2.urlopen(req)
+        # res = res_data.read()
+        # print "gm_resource_result:",res
+
+        req_type = 1110
+        # content = resource
+        # content = json.dumps({"msg": content}, ensure_ascii=False)
+        # print content
         print "gm_resource_sending..."
-        res_data = urllib2.urlopen(req)
-        res = res_data.read()
-        print "gm_resource_result:",res
+        result=self.gm_http_result(req_type,content)
+        print "result:",result
 
     def gm_modify_man(self):
         with open("./gm_manlist.txt","r") as f:
@@ -268,11 +334,19 @@ class Client():
                     content = "{\"msg\":["
                     content += str(post_list)
                     content += "]}"
-                    msg = urllib.urlencode({"req_type": "1116","content": content,"player_id": self.__player_id})
-                    url = Client.GM_URL + "/service?"
-                    req = urllib2.Request(url,msg)
-                    res_data = urllib2.urlopen(req)
-                    res = res_data.read().decode('utf-8')
+                    # msg = urllib.urlencode({"req_type": "1116","content": content,"player_id": self.__player_id})
+                    # url = Client.GM_URL + "/service?"
+                    # req = urllib2.Request(url,msg)
+                    # res_data = urllib2.urlopen(req)
+                    # res = res_data.read().decode('utf-8')
+
+                    req_type = 1116
+                    # content = post_list
+                    # content = json.dumps({"msg": content}, ensure_ascii=False)
+                    # print content
+                    result=self.gm_http_result(req_type,content)
+                    print "result:",result
+
                     gm_list = []
                     if not i:
                         pass
@@ -282,7 +356,6 @@ class Client():
                     gm_list.append(str(i))
                 else:
                     pass
-        print "gm_man_result:",res
 
     def gm_manlevel(self):
         print "gm_man_level_sending..."
@@ -302,11 +375,19 @@ class Client():
                     content = "{\"msg\":"
                     content += str(gm_list)
                     content += "}"
-                    msg = urllib.urlencode({"req_type": "1113","content": content,"player_id": self.__player_id})
-                    url = Client.GM_URL + "/service?"
-                    req = urllib2.Request(url,msg)
-                    res_data = urllib2.urlopen(req)
-                    res = res_data.read()
+                    # msg = urllib.urlencode({"req_type": "1113","content": content,"player_id": self.__player_id})
+                    # url = Client.GM_URL + "/service?"
+                    # req = urllib2.Request(url,msg)
+                    # res_data = urllib2.urlopen(req)
+                    # res = res_data.read()
+
+                    req_type = 1113
+                    # content = gm_list
+                    # content = json.dumps({"msg": content}, ensure_ascii=False)
+                    # print content
+                    result=self.gm_http_result(req_type,content)
+                    print "result:",result
+
                     gm_list = []
                     if not i:
                         pass
@@ -316,7 +397,6 @@ class Client():
                     gm_list.append(list)
                 else:
                     pass
-        print "gm_man_level_result",res
 
     def gm_map(self):
         with open("./gm_map_list.txt","r") as f:
@@ -334,11 +414,19 @@ class Client():
                 content = "{\"msg\":"
                 content += str(gm_list)
                 content += "}"
-                msg = urllib.urlencode({"req_type": "1122","content": content,"player_id": self.__player_id})
-                url = Client.GM_URL + "/service?"
-                req = urllib2.Request(url,msg)
-                res_data = urllib2.urlopen(req)
-                res = res_data.read().decode('utf-8')
+                # msg = urllib.urlencode({"req_type": "1122","content": content,"player_id": self.__player_id})
+                # url = Client.GM_URL + "/service?"
+                # req = urllib2.Request(url,msg)
+                # res_data = urllib2.urlopen(req)
+                # res = res_data.read().decode('utf-8')
+
+                req_type = 1122
+                # content = gm_list
+                # content = json.dumps({"msg": content}, ensure_ascii=False)
+                # print content
+                result=self.gm_http_result(req_type,content)
+                print "result:",result
+
                 gm_list = []
                 if not i:
                     pass
@@ -348,7 +436,6 @@ class Client():
                 gm_list.append(i)
             else:
                 pass
-        print 'map_result:',res
 
     def gm_modify_item(self):
         if (self.__player_id == 0):
@@ -372,11 +459,19 @@ class Client():
                 content = "{\"msg\":"
                 content += str(gm_list)
                 content += "}"
-                msg = urllib.urlencode({"req_type": "1117","content": content,"player_id": self.__player_id})
-                url = Client.GM_URL + "/service?"
-                req = urllib2.Request(url,msg)
-                res_data = urllib2.urlopen(req)
-                res = res_data.read().decode('utf-8')
+                # msg = urllib.urlencode({"req_type": "1117","content": content,"player_id": self.__player_id})
+                # url = Client.GM_URL + "/service?"
+                # req = urllib2.Request(url,msg)
+                # res_data = urllib2.urlopen(req)
+                # res = res_data.read().decode('utf-8')
+
+                req_type = 1117
+                # content = gm_list
+                # content = json.dumps({"msg": content}, ensure_ascii=False)
+                # print content
+                result=self.gm_http_result(req_type,content)
+                print "result:",result
+
                 gm_list = []
                 if not i:
                     pass
@@ -386,7 +481,6 @@ class Client():
                 gm_list.append(list)
             else:
                 pass
-        print 'gm_item_result:',res
 
 
 
@@ -810,9 +904,6 @@ class Client():
 
 
     def recv(self):
-        #recv打印开关
-        off_on="on"
-
         msg = self.__recv()
         if (len(self.__left_msg) != 0):
             msg = self.__left_msg + " " + msg
@@ -830,10 +921,7 @@ class Client():
                 if(self.protocol() == 501):
                     continue
                 #if(self.protocol() >= 14450 and self.protocol() < 14500):
-                if off_on=="on":
-                    print "recv", self.__protocol, ":(", length, ")", cur_msg
-                else:
-                    pass
+                print "recv", self.__protocol, ":(", length, ")", cur_msg
             else:
                 self.__left_msg = msg[cur_len : -1]
                 break
@@ -858,9 +946,12 @@ class Client():
         self.__socket.connect(Client.SERVER_ADDR)
 
     def __convert(self,data,length):
+        #加密
         Client.CONVERT_LIB.convert_binary(data,length);
 
     def __package(self,type,data):
+        #_len:uint16,_operate:int32,_netid:int32,_pid:int64
+        #MSG_BASE_LEN=_len:uint16 + operate:int32 + netid:int32 + _pid:int64
         origin_value = (len(data) + Client.MSG_BASE_LEN,type,self.__net_id,self.__player_id)
         bytes = Client.MSG_BASE.pack(*origin_value)
         self.__convert(data,len(data))
@@ -931,7 +1022,7 @@ def __login(times):
         user =user_head + str(i)
         # user = "cat"
         # user += str(i)
-        # user="scv0"
+        # user="lkj9"
         # user = "cat25"
         # password = "aaaaaa"
         c = Client(user,123,i,count)
