@@ -1,1 +1,1 @@
-# usual script
+# The game's usual script | Python
