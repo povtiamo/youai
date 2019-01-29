@@ -6,7 +6,7 @@ FileExt = ['png','jpg', 'mp3', 'lua', 'json']
 
 def randomStr(randomlength=8):
     str = ''
-    chars = 'AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz0123456789_!@#$%^&*()_+,./;~`!'
+    chars = '_!@#$%^&*()_+,./;~`!'
     length = len(chars) - 1
     for i in range(randomlength):
         str+=chars[random.randint(0, length)]
