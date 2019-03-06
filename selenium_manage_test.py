@@ -38,6 +38,7 @@ import sys,os
 # drag_and_drop()@拖动
 # move_to_element()@鼠标悬停
 # -- Help --
+_DEBUG=False
 
 class Client():
 	def __init__(self,username,password):
@@ -48,9 +49,15 @@ class Client():
 		self.__element_verify = ""
 		self.__element_Loginclick = "icon-key"
 		self.__element_Loginresult = "alert-danger"
+		self.__element_ItemList = ""
+		self.__element_ItemFind = ""
 		self.__driver = ''
 
 	def login(self):
+		if _DEBUG is True:
+		    import pdb
+		    pdb.set_trace()
+
 		#open Chrome
 		driver = webdriver.Chrome()
 		self.__driver = driver
@@ -73,19 +80,25 @@ class Client():
 		self.__element_verify=raw_input("input verify >")
 		driver.find_element_by_name("verify").send_keys(self.__element_verify)
 		print "input verify \"%s\""%(self.__element_verify)
-		time.sleep(3)
+		time.sleep(1)
 
 		driver.find_element_by_class_name(self.__element_Loginclick).click()
 		print "click login"
 
-		return_msg = driver.find_element_by_class_name(self.__element_Loginresult).text
-		if not return_msg:
-			print "login succes"
-		elif return_msg != '' or return_msg != 0:
+		try:
+			return_msg = driver.find_element_by_class_name(self.__element_Loginresult).text
 			print "login result:%s"%(return_msg)
-		else:
+		except:
 			print "login succes!"
-		self.__del__(driver)
+			pass
+
+		self.find_Item()
+
+		self.__del__()
+		
+
+	def find_Item(self):
+		pass
 
 	def __del__(self):
 		time.sleep(1)
